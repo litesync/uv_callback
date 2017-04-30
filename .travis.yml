@@ -1,5 +1,13 @@
 language: c
 
+before_script:
+  - git clone https://github.com/libuv/libuv
+  - cd libuv
+  - sh autogen.sh
+  - ./configure
+  - make
+  - sudo make install
+
 script:
   - cd test
   - gcc test.c -o test -luv
