@@ -202,5 +202,5 @@ int main() {
    assert(dynamic_call_counter == 3);
 
    puts("All tests pass!");
-
+   return 0;
 }

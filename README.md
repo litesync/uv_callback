@@ -1,5 +1,7 @@
 # uv_callback
 
+[![Build Status](https://travis-ci.org/litesync/uv_callback.svg?branch=master)](https://travis-ci.org/litesync/uv_callback)
+
 Module to call functions on other libuv threads.
 
 It is an alternative to uv_async with some differences:
