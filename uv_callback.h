@@ -24,13 +24,13 @@ int uv_callback_init(uv_loop_t* loop, uv_callback_t* callback, uv_callback_func 
 
 int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify);
 
+int uv_callback_fire_sync(uv_callback_t* callback, void *data, void** presult, int timeout);
+
 
 /* Constants */
 
 #define UV_DEFAULT      0
 #define UV_COALESCE     1
-
-//#define UV_SYNCHRONOUS  ((uv_callback_t*)-1)
 
 
 /* Structures */

@@ -106,3 +106,80 @@ int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify)
    /* call uv_async_send */
    return uv_async_send((uv_async_t*)callback);
 }
+
+/* Synchronous Callback Firing ***********************************************/
+
+struct call_result {
+   int timed_out;
+   int called;
+   void *data;
+};
+
+void callback_on_walk(uv_handle_t *handle, void *arg) {
+   uv_close(handle, NULL);
+}
+
+void * on_call_result(uv_callback_t *callback, void *data) {
+   uv_loop_t *loop = ((uv_handle_t*)callback)->loop;
+   struct call_result *result = loop->data;
+   result->called = 1;
+   result->data = data;
+   uv_stop(loop);
+}
+
+void on_timer(uv_timer_t *timer) {
+   uv_loop_t *loop = timer->loop;
+   struct call_result *result = loop->data;
+   result->timed_out = 1;
+   uv_stop(loop);
+}
+
+int uv_callback_fire_sync(uv_callback_t* callback, void *data, void** presult, int timeout) {
+   struct call_result result = {0};
+   uv_loop_t loop;
+   uv_callback_t notify;
+   uv_timer_t timer;
+   int rc=0;
+
+   if (!callback || callback->usequeue==0) return UV_EINVAL;
+
+   /* allocate a new call info */
+   uv_call_t *call = malloc(sizeof(uv_call_t));
+   if (!call) return UV_ENOMEM;
+   /* set the call result */
+   uv_loop_init(&loop);
+   uv_callback_init(&loop, &notify, on_call_result, UV_DEFAULT);
+   loop.data = &result;
+   /* save the call info */
+   call->data = data;
+   call->notify = &notify;
+   /* add the call to the queue */
+   uv_mutex_lock(&callback->mutex);
+   call->next = callback->queue;
+   callback->queue = call;
+   uv_mutex_unlock(&callback->mutex);
+
+   /* call uv_async_send to fire the callback on the other thread */
+   uv_async_send((uv_async_t*)callback);
+
+   /* if a timeout is supplied, set a timer */
+   if (timeout > 0) {
+      uv_timer_init(&loop, &timer);
+      uv_timer_start(&timer, on_timer, timeout, 0);
+   }
+
+   /* run the event loop */
+   uv_run(&loop, UV_RUN_DEFAULT);
+
+   /* exited the event loop */
+   uv_walk(&loop, callback_on_walk, NULL);
+   uv_run(&loop, UV_RUN_DEFAULT);
+   uv_loop_close(&loop);
+
+   /* store the result */
+   if (presult) *presult = result.data;
+   if (rc==0 && result.timed_out) rc = UV_ETIMEDOUT;
+   if (rc==0 && result.called==0) rc = UV_UNKNOWN;
+   return rc;
+
+}

@@ -37,6 +37,7 @@ uv_callback_t cb_progress;
 uv_callback_t cb_static_pointer;
 uv_callback_t cb_dynamic_pointer;
 uv_callback_t cb_sum;
+uv_callback_t cb_sum2;
 
 void * on_progress(uv_callback_t *callback, void *data) {
    printf("progress: %d %%\n", (int)data);
@@ -68,6 +69,13 @@ void * on_sum(uv_callback_t *callback, void *data) {
    return response;
 }
 
+void * on_sum2(uv_callback_t *callback, void *data) {
+   struct numbers *request = (struct numbers *)data;
+   int result = request->number1 + request->number2;
+   printf("sum (%p) number1: %d  number2: %d  result: %d\n", data, request->number1, request->number2, result);
+   free(request);
+   return (void*)result;
+}
 void stop_worker_cb(uv_async_t *handle) {
    puts("signal received to stop worker thread");
    uv_stop(handle->loop);
@@ -92,6 +100,10 @@ void worker_start(void *arg) {
    assert(rc == 0);
 
    rc = uv_callback_init(&loop, &cb_sum, on_sum, UV_DEFAULT);
+   printf("uv_callback_init rc=%d\n", rc);
+   assert(rc == 0);
+
+   rc = uv_callback_init(&loop, &cb_sum2, on_sum2, UV_DEFAULT);
    printf("uv_callback_init rc=%d\n", rc);
    assert(rc == 0);
 
@@ -128,7 +140,8 @@ void * on_result(uv_callback_t *callback, void *data) {
 
 int main() {
    uv_loop_t *loop = uv_default_loop();
-   int rc;
+   struct numbers *req, *resp;
+   int rc, result;
 
    uv_barrier_init(&barrier, 2);
 
@@ -169,7 +182,7 @@ int main() {
    assert(rc == 0);
 
    /* allocate memory fo the arguments */
-   struct numbers *req = malloc(sizeof(struct numbers));
+   req = malloc(sizeof(struct numbers));
    assert(req != 0);
    req->number1 = 123;
    req->number2 = 456;
@@ -182,24 +195,55 @@ int main() {
    puts("running the event loop in the main thread");
    uv_run(loop, UV_RUN_DEFAULT);
 
-   /* cleanup */
-   puts("cleaning up the main thread");
-
-   /* send a signal to the worker thread to exit */
-   uv_async_send(&stop_worker);
-
    /* close the handles from this loop */
+   puts("cleaning up the main thread");
    uv_walk(loop, on_walk, NULL);
    uv_run(loop, UV_RUN_DEFAULT);
    uv_loop_close(loop);
-
-   /* wait the worker thread to exit */
-   uv_thread_join(&worker_thread);
 
    /* check the values */
    assert(progress_called > 0);
    assert(static_call_counter == 3);
    assert(dynamic_call_counter == 3);
+
+
+   /* test asynchronous calls */
+
+   /* allocate memory fo the arguments */
+   req = malloc(sizeof(struct numbers));
+   assert(req != 0);
+   req->number1 = 111;
+   req->number2 = 222;
+   req->result = 0;
+
+   /* call the function in the other thread */
+   rc = uv_callback_fire_sync(&cb_sum, req, (void**)&resp, 10000);
+   printf("uv_callback_fire_sync rc=%d\n", rc);
+   assert(rc == 0);
+   printf("response=%p\n", resp);
+   assert(resp != 0);
+   assert(resp->result == 333);
+   free(resp);
+
+   /* allocate memory fo the arguments */
+   req = malloc(sizeof(struct numbers));
+   assert(req != 0);
+   req->number1 = 111;
+   req->number2 = 222;
+   req->result = 0;
+
+   /* call the function in the other thread - this one returns an integer */
+   rc = uv_callback_fire_sync(&cb_sum2, req, (void**)&result, 10000);
+   printf("uv_callback_fire_sync rc=%d\n", rc);
+   assert(rc == 0);
+   printf("result=%d\n", result);
+   assert(result == 333);
+
+   /* send a signal to the worker thread to exit */
+   uv_async_send(&stop_worker);
+
+   /* wait the worker thread to exit */
+   uv_thread_join(&worker_thread);
 
    puts("All tests pass!");
    return 0;
