@@ -70,29 +70,37 @@ uv_callback_fire(&send_data, data, NULL);
 ## Firing the callback synchronously
 
 In this case the thread firing the callback will wait until the function
-called on the other loop returns.
+called on the other thread returns.
 
-The main difference from the previous example is the use of UV_SYNCHRONOUS.
+It means it will not use the current thread event loop and it does not
+even need to have one (it can be used in caller threads with no event loop
+but the called thread needs to have one).
 
-This can be used when the worker thread does not have a loop.
+The last argument is the timeout in milliseconds.
 
-### In the receiver thread
+If the called thread does not respond within the specified timeout time
+the function returns `UV_ETIMEDOUT`.
+
+
+### In the called thread
 
 ```C
 uv_callback_t send_data;
 
-void * on_data(uv_callback_t *handle, void *data) {
-  do_something(data);
-  free(data);
+void * on_data(uv_callback_t *handle, void *args) {
+  int result = do_something(args);
+  free(args);
+  return (void*)result;
 }
 
 uv_callback_init(loop, &send_data, on_data, UV_DEFAULT);
 ```
 
-### In the sender thread
+### In the caller thread
 
 ```C
-uv_callback_fire(&send_data, data, UV_SYNCHRONOUS);
+int result;
+uv_callback_fire_sync(&send_data, args, (void*)&result, 1000);
 ```
 
 

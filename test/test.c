@@ -76,6 +76,7 @@ void * on_sum2(uv_callback_t *callback, void *data) {
    free(request);
    return (void*)result;
 }
+
 void stop_worker_cb(uv_async_t *handle) {
    puts("signal received to stop worker thread");
    uv_stop(handle->loop);
