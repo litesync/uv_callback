@@ -1,6 +1,6 @@
 language: c
 
-before_script:
+install:
   - git clone https://github.com/libuv/libuv
   - cd libuv
   - sh autogen.sh
