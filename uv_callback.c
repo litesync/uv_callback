@@ -8,6 +8,12 @@
 /* RECEIVER / CALLED THREAD **************************************************/
 /*****************************************************************************/
 
+#ifndef container_of
+#define container_of(ptr, type, member) ((type *)((char *)(ptr) - offsetof(type, member)))
+#endif
+
+void uv_callback_idle_cb(uv_idle_t* handle);
+
 /* Dequeue *******************************************************************/
 
 void * dequeue_call(uv_callback_t* callback) {
@@ -43,10 +49,17 @@ void uv_callback_async_cb(uv_async_t* handle) {
          if (call->notify) uv_callback_fire(call->notify, result, NULL);
          free(call);
       }
+      uv_idle_start(&callback->idle, uv_callback_idle_cb);
    } else {
       callback->function(callback, callback->arg);
    }
 
+}
+
+void uv_callback_idle_cb(uv_idle_t* handle) {
+   uv_callback_t* callback = container_of(handle, uv_callback_t, idle);
+   uv_callback_async_cb((uv_async_t*)callback);
+   uv_idle_stop(handle);
 }
 
 /* Initialization ************************************************************/
@@ -70,6 +83,9 @@ int uv_callback_init(uv_loop_t* loop, uv_callback_t* callback, uv_callback_func 
    default:
       return UV_EINVAL;
    }
+
+   rc = uv_idle_init(loop, &callback->idle);
+   if (rc) return rc;
 
    return uv_async_init(loop, (uv_async_t*) callback, uv_callback_async_cb);
 }

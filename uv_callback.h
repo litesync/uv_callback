@@ -41,10 +41,11 @@ struct uv_callback_s {
       void *data;
    };
    int usequeue;
-   uv_call_t *queue;         /* queue of calls to this callback */
-   uv_mutex_t mutex;
-   uv_callback_func function;
-   void *arg;                /* data argument for coalescing calls (when not using queue) */
+   uv_call_t *queue;          /* queue of calls to this callback */
+   uv_mutex_t mutex;          /* mutex used to access the queue */
+   uv_callback_func function; /* the function to be called */
+   void *arg;                 /* data argument for coalescing calls (when not using queue) */
+   uv_idle_t idle;            /* idle handle used to drain the queue if new async request was sent while an old one was being processed */
 };
 
 struct uv_call_s {
