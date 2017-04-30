@@ -1,0 +1,6 @@
+language: c
+
+script:
+  - cd test
+  - gcc test.c -o test -luv
+  - ./test
