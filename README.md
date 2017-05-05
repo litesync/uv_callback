@@ -122,21 +122,21 @@ void * on_data(uv_callback_t *handle, void *data) {
   return (void*)result;
 }
 
-uv_callback_init(loop, &send_data, (uv_callback_cb)on_data, UV_DEFAULT);
+uv_callback_init(loop, &send_data, on_data, UV_DEFAULT);
 ```
 
 ### In the calling thread
 
 ```C
-uv_callback_t data_sent;
+uv_callback_t result_cb;
 
-void * on_data_sent(uv_callback_t *handle, void *result) {
+void * on_result(uv_callback_t *handle, void *result) {
   printf("The result is %d\n", (int)result);
 }
 
-uv_callback_init(loop, &data_sent, on_data_sent, UV_DEFAULT);
+uv_callback_init(loop, &result_cb, on_result, UV_DEFAULT);
 
-uv_callback_fire(&send_data, data, &data_sent);
+uv_callback_fire(&send_data, data, &result_cb);
 ```
 
 # License
