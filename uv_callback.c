@@ -43,13 +43,22 @@ void uv_callback_async_cb(uv_async_t* handle) {
    uv_callback_t* callback = (uv_callback_t*) handle;
 
    if (callback->usequeue) {
-      uv_call_t *call;
-      while (call = dequeue_call(callback)) {
+      uv_call_t *call = dequeue_call(callback);
+      if (call) {
          void *result = callback->function(callback, call->data);
          if (call->notify) uv_callback_fire(call->notify, result, NULL);
          free(call);
+         /* don't check for new calls now to prevent the loop from blocking
+         for i/o events. start an idle handle to call this function again */
+         if (!callback->idle_active) {
+            uv_idle_start(&callback->idle, uv_callback_idle_cb);
+            callback->idle_active = 1;
+         }
+      } else {
+         /* no more calls in the queue. stop the idle handle */
+         uv_idle_stop(&callback->idle);
+         callback->idle_active = 0;
       }
-      uv_idle_start(&callback->idle, uv_callback_idle_cb);
    } else {
       callback->function(callback, callback->arg);
    }
@@ -59,7 +68,6 @@ void uv_callback_async_cb(uv_async_t* handle) {
 void uv_callback_idle_cb(uv_idle_t* handle) {
    uv_callback_t* callback = container_of(handle, uv_callback_t, idle);
    uv_callback_async_cb((uv_async_t*)callback);
-   uv_idle_stop(handle);
 }
 
 /* Initialization ************************************************************/
@@ -84,6 +92,7 @@ int uv_callback_init(uv_loop_t* loop, uv_callback_t* callback, uv_callback_func 
       return UV_EINVAL;
    }
 
+   callback->idle_active = 0;
    rc = uv_idle_init(loop, &callback->idle);
    if (rc) return rc;
 

@@ -46,6 +46,7 @@ struct uv_callback_s {
    uv_callback_func function; /* the function to be called */
    void *arg;                 /* data argument for coalescing calls (when not using queue) */
    uv_idle_t idle;            /* idle handle used to drain the queue if new async request was sent while an old one was being processed */
+   int idle_active;           /* flags if the idle handle is active */
 };
 
 struct uv_call_s {
