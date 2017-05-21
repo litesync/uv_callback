@@ -47,12 +47,14 @@ struct uv_callback_s {
    void *arg;                 /* data argument for coalescing calls (when not using queue) */
    uv_idle_t idle;            /* idle handle used to drain the queue if new async request was sent while an old one was being processed */
    int idle_active;           /* flags if the idle handle is active */
+   uv_callback_t *master;     /* master callback handle */
 };
 
 struct uv_call_s {
-  uv_call_t *next;          /* pointer to the next call in the queue */
-  void *data;               /* data argument for this call */
-  uv_callback_t *notify;    /* callback to be fired with the result of this one */
+   uv_call_t *next;           /* pointer to the next call in the queue */
+   uv_callback_t *callback;   /* callback linked to this call */
+   void *data;                /* data argument for this call */
+   uv_callback_t *notify;     /* callback to be fired with the result of this one */
 };
 
 

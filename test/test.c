@@ -4,9 +4,9 @@
 #include "../uv_callback.c"
 #include <assert.h>
 
-uv_thread_t  worker_thread;
-uv_barrier_t barrier;
-uv_async_t   stop_worker;
+uv_thread_t   worker_thread;
+uv_barrier_t  barrier;
+uv_callback_t stop_worker;
 
 int progress_called = 0;
 int static_call_counter = 0;
@@ -60,26 +60,25 @@ void * on_sum(uv_callback_t *callback, void *data) {
    struct numbers *request = (struct numbers *)data;
    struct numbers *response = malloc(sizeof(struct numbers));
    assert(response != 0);
-   printf("sum (%p) number1: %d  number2: %d\n", data, request->number1, request->number2);
    response->number1 = request->number1;
    response->number2 = request->number2;
    response->result = request->number1 + request->number2;
+   printf("sum1 (%p) number1: %d  number2: %d  result: %d\n", data, request->number1, request->number2, response->result);
    free(request);
-   printf("sum result: %d\n", response->result);
    return response;
 }
 
 void * on_sum2(uv_callback_t *callback, void *data) {
    struct numbers *request = (struct numbers *)data;
    int result = request->number1 + request->number2;
-   printf("sum (%p) number1: %d  number2: %d  result: %d\n", data, request->number1, request->number2, result);
+   printf("sum2 (%p) number1: %d  number2: %d  result: %d\n", data, request->number1, request->number2, result);
    free(request);
    return (void*)result;
 }
 
-void stop_worker_cb(uv_async_t *handle) {
+void * stop_worker_cb(uv_callback_t *handle, void *arg) {
    puts("signal received to stop worker thread");
-   uv_stop(handle->loop);
+   uv_stop(((uv_handle_t*)handle)->loop);
 }
 
 void worker_start(void *arg) {
@@ -108,7 +107,9 @@ void worker_start(void *arg) {
    printf("uv_callback_init rc=%d\n", rc);
    assert(rc == 0);
 
-   uv_async_init(&loop, &stop_worker, stop_worker_cb);
+   rc = uv_callback_init(&loop, &stop_worker, stop_worker_cb, UV_COALESCE);
+   printf("uv_callback_init rc=%d\n", rc);
+   assert(rc == 0);
 
    /* signal to the main thread the the listening socket is ready */
    uv_barrier_wait(&barrier);
@@ -130,7 +131,7 @@ uv_callback_t cb_result;
 
 void * on_result(uv_callback_t *callback, void *data) {
    struct numbers *response = (struct numbers *)data;
-   printf("sum result (%p)  number1: %d  number2: %d  result=%d\n", data, response->number1, response->number2, response->result);
+   printf("on sum result (%p)  number1: %d  number2: %d  result=%d\n", data, response->number1, response->number2, response->result);
    assert(response->number1 == 123);
    assert(response->number2 == 456);
    assert(response->result == 579);
@@ -241,7 +242,7 @@ int main() {
    assert(result == 333);
 
    /* send a signal to the worker thread to exit */
-   uv_async_send(&stop_worker);
+   uv_callback_fire(&stop_worker, NULL, NULL);
 
    /* wait the worker thread to exit */
    uv_thread_join(&worker_thread);
