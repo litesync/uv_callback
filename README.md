@@ -100,7 +100,7 @@ uv_callback_init(loop, &send_data, on_data, UV_DEFAULT);
 
 ```C
 int result;
-uv_callback_fire_sync(&send_data, args, (void*)&result, 1000);
+uv_callback_fire_sync(&send_data, args, (void**)&result, 1000);
 ```
 
 
