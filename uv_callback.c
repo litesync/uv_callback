@@ -174,6 +174,15 @@ void on_timer(uv_timer_t *timer) {
    uv_loop_t *loop = timer->loop;
    struct call_result *result = loop->data;
    result->timed_out = 1;
+
+   /* Clear notify in callback because caller thread's notify callback is local variable */
+   uv_callback_t* callback = (uv_callback_t*)uv_handle_get_data((uv_handle_t*)timer);
+   uv_call_t* call = dequeue_call(callback);
+   while (call != NULL) {
+      call->notify = NULL;
+      call = dequeue_call(callback);
+   }
+
    uv_stop(loop);
 }
 
@@ -201,6 +210,7 @@ int uv_callback_fire_sync(uv_callback_t* callback, void *data, void** presult, i
    /* if a timeout is supplied, set a timer */
    if (timeout > 0) {
       uv_timer_init(&loop, &timer);
+      uv_handle_set_data((uv_handle_t*)&timer, callback);
       uv_timer_start(&timer, on_timer, timeout, 0);
    }
 
