@@ -143,7 +143,7 @@ uv_callback_fire(&send_data, data, &result_cb);
 
 If the `uv_callback_t` object is allocated on memory then you can inform which function should be used to release it using the `uv_callback_init_ex` function:
 
-```
+```C
 uv_callback_t *cb = malloc(sizeof(uv_callback_t));
 if (!cb) ...
 uv_callback_init_ex(loop, &cb, get_values, UV_DEFAULT, free, NULL);
@@ -153,7 +153,7 @@ You can discard it on the same thread it was created using the `uv_callback_stop
 
 You can also inform in the last argument which function should be used to release the result from the callback, if it is not used.
 
-```
+```C
 void * get_data(uv_callback_t *handle, void *arg) {
   struct my_data *result = malloc(sizeof(struct my_data))
   result->data1 = calc1(arg);
