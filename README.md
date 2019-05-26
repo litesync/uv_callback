@@ -139,7 +139,8 @@ uv_callback_init(loop, &result_cb, on_result, UV_DEFAULT);
 uv_callback_fire(&send_data, data, &result_cb);
 ```
 
-## Non-static objects
+
+# Non-static objects
 
 If the `uv_callback_t` object is allocated on memory then you can inform which function should be used to release it using the `uv_callback_init_ex` function:
 
@@ -150,6 +151,29 @@ uv_callback_init_ex(loop, &cb, get_values, UV_DEFAULT, free, NULL);
 ```
 
 You can discard it on the same thread it was created using the `uv_callback_stop` function just before closing the loop handles (check usage on the [uv_callback_fire_sync](https://github.com/litesync/uv_callback/blob/master/uv_callback.c#L351) function) and then `uv_callback_release` on the callback of the `uv_close`. The object will be released when the reference counter reaches 0.
+
+```C
+void on_close(uv_handle_t *handle) {
+   if (uv_is_callback(handle)) {
+      uv_callback_release((uv_callback_t*) handle);
+   }
+}
+
+void on_walk(uv_handle_t *handle, void *arg) {
+   uv_close(handle, on_close);
+}
+
+...
+
+   /* run the event loop */
+   uv_run(&loop, UV_RUN_DEFAULT);
+
+   /* the event loop stopped */
+   uv_callback_stop_all(&loop);
+   uv_walk(&loop, on_walk, NULL);
+   uv_run(&loop, UV_RUN_DEFAULT);
+   uv_loop_close(&loop);
+```
 
 You can also inform in the last argument which function should be used to release the result from the callback, if it is not used.
 
