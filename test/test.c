@@ -38,6 +38,7 @@ uv_callback_t cb_static_pointer;
 uv_callback_t cb_dynamic_pointer;
 uv_callback_t cb_sum;
 uv_callback_t cb_sum2;
+uv_callback_t cb_slow;
 
 void * on_progress(uv_callback_t *callback, void *data) {
    printf("progress: %d %%\n", (int)data);
@@ -76,6 +77,15 @@ void * on_sum2(uv_callback_t *callback, void *data) {
    return (void*)result;
 }
 
+void * on_slow(uv_callback_t *callback, void *data) {
+   struct numbers *request = (struct numbers *)data;
+   int result = request->number1 + request->number2;
+   printf("slow function (%p) number1: %d  number2: %d  result: %d\n", data, request->number1, request->number2, result);
+   free(request);
+   sleep(2);
+   return (void*)result;
+}
+
 void * stop_worker_cb(uv_callback_t *handle, void *arg) {
    puts("signal received to stop worker thread");
    uv_stop(((uv_handle_t*)handle)->loop);
@@ -104,6 +114,10 @@ void worker_start(void *arg) {
    assert(rc == 0);
 
    rc = uv_callback_init(&loop, &cb_sum2, on_sum2, UV_DEFAULT);
+   printf("uv_callback_init rc=%d\n", rc);
+   assert(rc == 0);
+
+   rc = uv_callback_init(&loop, &cb_slow, on_slow, UV_DEFAULT);
    printf("uv_callback_init rc=%d\n", rc);
    assert(rc == 0);
 
@@ -138,6 +152,19 @@ void * on_result(uv_callback_t *callback, void *data) {
    free(response);
    uv_stop(((uv_handle_t*)callback)->loop);
    return NULL;
+}
+
+void wait_it(){
+  char temp[64];
+  int a, b, c;
+
+  strcpy(temp, "testing this thing");
+  a = 1;
+  b = 2;
+  c = 3;
+
+  sleep(2);
+
 }
 
 int main() {
@@ -209,7 +236,7 @@ int main() {
    assert(dynamic_call_counter == 3);
 
 
-   /* test asynchronous calls */
+   /* test synchronous calls */
 
    /* allocate memory fo the arguments */
    req = malloc(sizeof(struct numbers));
@@ -219,13 +246,14 @@ int main() {
    req->result = 0;
 
    /* call the function in the other thread */
-   rc = uv_callback_fire_sync(&cb_sum, req, (void**)&resp, 10000);
+   rc = uv_callback_fire_sync(&cb_sum, req, (void**)&resp, 1000);
    printf("uv_callback_fire_sync rc=%d\n", rc);
    assert(rc == 0);
    printf("response=%p\n", resp);
    assert(resp != 0);
    assert(resp->result == 333);
    free(resp);
+
 
    /* allocate memory fo the arguments */
    req = malloc(sizeof(struct numbers));
@@ -235,11 +263,32 @@ int main() {
    req->result = 0;
 
    /* call the function in the other thread - this one returns an integer */
-   rc = uv_callback_fire_sync(&cb_sum2, req, (void**)&result, 10000);
+   rc = uv_callback_fire_sync(&cb_sum2, req, (void**)&result, 1000);
    printf("uv_callback_fire_sync rc=%d\n", rc);
    assert(rc == 0);
    printf("result=%d\n", result);
    assert(result == 333);
+
+
+   /* allocate memory fo the arguments */
+   req = malloc(sizeof(struct numbers));
+   assert(req != 0);
+   req->number1 = 111;
+   req->number2 = 222;
+   req->result = 0;
+
+   /* call the function in the other thread */
+   rc = uv_callback_fire_sync(&cb_slow, req, (void**)&resp, 1000);
+   printf("uv_callback_fire_sync rc=%d\n", rc);
+   assert(rc != 0);
+   printf("response=%p\n", resp);
+   assert(resp == NULL);
+
+   puts("waiting the worker thread to answer...");
+   wait_it();
+
+
+   /* end of the tests */
 
    /* send a signal to the worker thread to exit */
    uv_callback_fire(&stop_worker, NULL, NULL);

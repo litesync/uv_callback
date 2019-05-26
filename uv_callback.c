@@ -1,7 +1,8 @@
 #include <stdlib.h>
 #include "uv_callback.h"
 
-// what is not covered: destroy of uv_callback handle does not release all the resources
+// not covered now: destroy of uv_callback handle does not release all the resources.
+// for this libuv should support a calling a callback when our handle is being closed.
 
 
 /*****************************************************************************/
@@ -26,6 +27,27 @@ uv_callback_t * get_master_callback(uv_loop_t *loop) {
    uv_callback_t *callback=0;
    uv_walk(loop, master_on_walk, &callback);
    return callback;
+}
+
+/* Callback Release **********************************************************/
+
+void uv_callback_release(uv_callback_t *callback) {
+   if (callback) {
+      callback->refcount--;
+      if (callback->refcount == 0 && callback->free_cb) {
+         /* remove the object from the list */
+         uv_callback_t *cb = callback->master;
+         while (cb) {
+            if (cb->next == callback) {
+               cb->next = callback->next;
+               break;
+            }
+            cb = cb->next;
+         }
+         /* release the object */
+         callback->free_cb(callback);
+      }
+   }
 }
 
 /* Dequeue *******************************************************************/
@@ -60,7 +82,15 @@ void uv_callback_async_cb(uv_async_t* handle) {
       uv_call_t *call = dequeue_call(callback);
       if (call) {
          void *result = call->callback->function(call->callback, call->data);
-         if (call->notify) uv_callback_fire(call->notify, result, NULL);
+         /* check if the result notification callback is still active */
+         if (call->notify && !call->notify->inactive) {
+            uv_callback_fire(call->notify, result, NULL);
+         } else if (result && call->callback->free_result) {
+            call->callback->free_result(result);
+         }
+         if (call->notify) {
+            uv_callback_release(call->notify);
+         }
          free(call);
          /* don't check for new calls now to prevent the loop from blocking
          for i/o events. start an idle handle to call this function again */
@@ -86,7 +116,14 @@ void uv_callback_idle_cb(uv_idle_t* handle) {
 
 /* Initialization ************************************************************/
 
-int uv_callback_init(uv_loop_t* loop, uv_callback_t* callback, uv_callback_func function, int callback_type) {
+int uv_callback_init_ex(
+   uv_loop_t* loop,
+   uv_callback_t* callback,
+   uv_callback_func function,
+   int callback_type,
+   void (*free_cb)(void*),
+   void (*free_result)(void*)
+){
    int rc;
 
    if (!loop || !callback || !function) return UV_EINVAL;
@@ -97,14 +134,22 @@ int uv_callback_init(uv_loop_t* loop, uv_callback_t* callback, uv_callback_func 
    switch(callback_type) {
    case UV_DEFAULT:
       callback->usequeue = 1;
+      callback->refcount = 1;
+      callback->free_cb = free_cb;
+      callback->free_result = free_result;
       callback->master = get_master_callback(loop);
       if (callback->master) {
-         return 0;
+         /* add this callback to the list */
+         uv_callback_t *base = callback->master;
+         while (base->next) { base = base->next; }
+         base->next = callback;
+         return 0;  /* the uv_async handle is already initialized */
       } else {
          uv_mutex_init(&callback->mutex);
          rc = uv_idle_init(loop, &callback->idle);
          if (rc) return rc;
       }
+      /* fallthrough */
    case UV_COALESCE:
       break;
    default:
@@ -112,6 +157,49 @@ int uv_callback_init(uv_loop_t* loop, uv_callback_t* callback, uv_callback_func 
    }
 
    return uv_async_init(loop, (uv_async_t*) callback, uv_callback_async_cb);
+}
+
+int uv_callback_init(uv_loop_t* loop, uv_callback_t* callback, uv_callback_func function, int callback_type) {
+   return uv_callback_init_ex(loop, callback, function, callback_type, NULL, NULL);
+}
+
+void stop_on_close(uv_handle_t *handle) {
+   uv_callback_t *callback = (uv_callback_t *) handle;
+   uv_callback_release(callback);
+}
+
+void uv_callback_stop(uv_callback_t* callback) {
+
+   if (!callback) return;
+
+   callback->inactive = 1;
+
+   if (callback->usequeue) {
+      uv_call_t *call;
+      while ((call=dequeue_call(callback))) {
+         free(call);
+      }
+   }
+
+   if (!uv_is_closing((uv_handle_t*)callback)) {
+      uv_close((uv_handle_t*)callback, stop_on_close);
+   }
+
+}
+
+void stop_all_on_walk(uv_handle_t *handle, void *arg) {
+   if (handle->type == UV_ASYNC) {  // && handle->data==handle  this could be used to identify it as a callback handle
+      uv_callback_t *callback = (uv_callback_t *) handle;
+      while (callback) {
+         uv_callback_t *next = callback->next;
+         uv_callback_stop(callback);
+         callback = next;
+      }
+   }
+}
+
+void uv_callback_stop_all(uv_loop_t* loop) {
+   uv_walk(loop, stop_all_on_walk, NULL);
 }
 
 /*****************************************************************************/
@@ -125,7 +213,7 @@ int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify)
    if (!callback) return UV_EINVAL;
 
    /* if there is a notification callback set, then the call must use a queue */
-   if (notify!=NULL && callback->usequeue==0) return UV_EINVAL;
+   if (notify && !callback->usequeue) return UV_EINVAL;
 
    if (callback->usequeue) {
       /* allocate a new call info */
@@ -142,6 +230,8 @@ int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify)
       call->next = callback->queue;
       callback->queue = call;
       uv_mutex_unlock(&callback->mutex);
+      /* increase the reference counter */
+      if (notify) notify->refcount++;
    } else {
       callback->arg = data;
    }
@@ -159,7 +249,9 @@ struct call_result {
 };
 
 void callback_on_walk(uv_handle_t *handle, void *arg) {
-   uv_close(handle, NULL);
+   if (!uv_is_closing(handle)) {
+      uv_close(handle, NULL);
+   }
 }
 
 void * on_call_result(uv_callback_t *callback, void *data) {
@@ -168,6 +260,7 @@ void * on_call_result(uv_callback_t *callback, void *data) {
    result->called = 1;
    result->data = data;
    uv_stop(loop);
+   return NULL;
 }
 
 void on_timer(uv_timer_t *timer) {
@@ -180,21 +273,24 @@ void on_timer(uv_timer_t *timer) {
 int uv_callback_fire_sync(uv_callback_t* callback, void *data, void** presult, int timeout) {
    struct call_result result = {0};
    uv_loop_t loop;
-   uv_callback_t notify;
    uv_timer_t timer;
+   uv_callback_t *notify;  /* must be allocated because it is shared with the called thread */
    int rc=0;
 
    if (!callback || callback->usequeue==0) return UV_EINVAL;
 
+   notify = malloc(sizeof(uv_callback_t));
+   if (!notify) return UV_ENOMEM;
+
    /* set the call result */
    uv_loop_init(&loop);
-   uv_callback_init(&loop, &notify, on_call_result, UV_DEFAULT);
+   uv_callback_init_ex(&loop, notify, on_call_result, UV_DEFAULT, free, NULL);
    loop.data = &result;
 
    /* fire the callback on the other thread */
-   rc = uv_callback_fire(callback, data, &notify);
+   rc = uv_callback_fire(callback, data, notify);
    if (rc) {
-      uv_close((uv_handle_t *) &notify, NULL);
+      uv_close((uv_handle_t*) notify, stop_on_close);
       goto loc_exit;
    }
 
@@ -208,6 +304,9 @@ int uv_callback_fire_sync(uv_callback_t* callback, void *data, void** presult, i
    uv_run(&loop, UV_RUN_DEFAULT);
 
    /* exited the event loop */
+   /* before closing the loop handles */
+   //uv_callback_stop(notify);
+   uv_callback_stop_all(&loop);
    uv_walk(&loop, callback_on_walk, NULL);
    uv_run(&loop, UV_RUN_DEFAULT);
 loc_exit:

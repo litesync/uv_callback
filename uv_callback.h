@@ -22,9 +22,21 @@ typedef void* (*uv_callback_func)(uv_callback_t* handle, void *data);
 
 int uv_callback_init(uv_loop_t* loop, uv_callback_t* callback, uv_callback_func function, int callback_type);
 
+int uv_callback_init_ex(
+   uv_loop_t* loop,
+   uv_callback_t* callback,
+   uv_callback_func function,
+   int callback_type,
+   void (*free_cb)(void*),
+   void (*free_result)(void*)
+);
+
 int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify);
 
 int uv_callback_fire_sync(uv_callback_t* callback, void *data, void** presult, int timeout);
+
+void uv_callback_stop(uv_callback_t* callback);
+void uv_callback_stop_all(uv_loop_t* loop);
 
 
 /* Constants */
@@ -47,7 +59,12 @@ struct uv_callback_s {
    void *arg;                 /* data argument for coalescing calls (when not using queue) */
    uv_idle_t idle;            /* idle handle used to drain the queue if new async request was sent while an old one was being processed */
    int idle_active;           /* flags if the idle handle is active */
-   uv_callback_t *master;     /* master callback handle */
+   uv_callback_t *master;     /* master callback handle, the one with the valid uv_async handle */
+   uv_callback_t *next;       /* the next callback from this uv_async handle */
+   int inactive;              /* this callback is no more valid. the called thread should not fire the response callback */
+   int refcount;              /* reference counter */
+   void (*free_cb)(void*);    /* function to release this object */
+   void (*free_result)(void*);/* function to release the result of the call if not used */
 };
 
 struct uv_call_s {
