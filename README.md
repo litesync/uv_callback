@@ -150,7 +150,7 @@ if (!cb) ...
 uv_callback_init_ex(loop, &cb, get_values, UV_DEFAULT, free, NULL);
 ```
 
-You can discard it on the same thread it was created using the `uv_callback_stop` function just before closing the loop handles (check usage on the [uv_callback_fire_sync](https://github.com/litesync/uv_callback/blob/master/uv_callback.c#L351) function) and then `uv_callback_release` on the callback of the `uv_close`. The object will be released when the reference counter reaches 0.
+You can discard it on the same thread it was created using the `uv_callback_stop` function just before closing the loop handles and then `uv_callback_release` on the callback of the `uv_close`. The object will be released when the reference counter reaches 0.
 
 ```C
 void on_close(uv_handle_t *handle) {
