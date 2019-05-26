@@ -40,6 +40,9 @@ int uv_callback_fire_sync(uv_callback_t* callback, void *data, void** presult, i
 void uv_callback_stop(uv_callback_t* callback);
 void uv_callback_stop_all(uv_loop_t* loop);
 
+int uv_is_callback(uv_handle_t *handle);
+void uv_callback_release(uv_callback_t *callback);
+
 
 /* Constants */
 

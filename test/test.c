@@ -21,8 +21,14 @@ char *msg6 = "The sixth message";
 
 /* Common ********************************************************************/
 
+void on_close(uv_handle_t *handle) {
+   if (uv_is_callback(handle)) {
+      uv_callback_release((uv_callback_t*) handle);
+   }
+}
+
 void on_walk(uv_handle_t *handle, void *arg) {
-   uv_close(handle, NULL);
+   uv_close(handle, on_close);
 }
 
 /* Worker Thread *************************************************************/
@@ -133,6 +139,7 @@ void worker_start(void *arg) {
 
    /* cleanup */
    puts("cleaning up worker thread");
+   uv_callback_stop_all(&loop);
    uv_walk(&loop, on_walk, NULL);
    uv_run(&loop, UV_RUN_DEFAULT);
    uv_loop_close(&loop);
@@ -296,6 +303,12 @@ int main() {
 
    /* wait the worker thread to exit */
    uv_thread_join(&worker_thread);
+   puts("worker thread closed");
+
+   /* test calls with the worker thread closed */
+   uv_callback_fire(&cb_progress, (void*)99, NULL);
+   uv_callback_fire(&cb_static_pointer, msg1, NULL);
+
 
    puts("All tests pass!");
    return 0;
