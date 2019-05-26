@@ -177,6 +177,9 @@ void uv_callback_stop(uv_callback_t* callback) {
    if (callback->usequeue) {
       uv_call_t *call;
       while ((call=dequeue_call(callback))) {
+         if (call->data && call->free_data) {
+            call->free_data(call->data);
+         }
          free(call);
       }
    }
@@ -208,7 +211,7 @@ void uv_callback_stop_all(uv_loop_t* loop) {
 
 /* Asynchronous Callback Firing **********************************************/
 
-int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify) {
+int uv_callback_fire_ex(uv_callback_t* callback, void *data, void (*free_data)(void*), uv_callback_t* notify) {
 
    if (!callback) return UV_EINVAL;
 
@@ -223,6 +226,7 @@ int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify)
       call->data = data;
       call->notify = notify;
       call->callback = callback;
+      call->free_data = free_data;
       /* if there is a master callback, use it */
       if (callback->master) callback = callback->master;
       /* add the call to the queue */
@@ -238,6 +242,10 @@ int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify)
 
    /* call uv_async_send */
    return uv_async_send((uv_async_t*)callback);
+}
+
+int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify) {
+   return uv_callback_fire_ex(callback, data, NULL, notify);
 }
 
 /* Synchronous Callback Firing ***********************************************/

@@ -33,6 +33,8 @@ int uv_callback_init_ex(
 
 int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify);
 
+int uv_callback_fire_ex(uv_callback_t* callback, void *data, void (*free_data)(void*), uv_callback_t* notify);
+
 int uv_callback_fire_sync(uv_callback_t* callback, void *data, void** presult, int timeout);
 
 void uv_callback_stop(uv_callback_t* callback);
@@ -71,6 +73,7 @@ struct uv_call_s {
    uv_call_t *next;           /* pointer to the next call in the queue */
    uv_callback_t *callback;   /* callback linked to this call */
    void *data;                /* data argument for this call */
+   void (*free_data)(void*);  /* function to release the data if the call is not fired */
    uv_callback_t *notify;     /* callback to be fired with the result of this one */
 };
 
