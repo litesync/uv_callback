@@ -3,7 +3,7 @@
 
 // not covered now: destroy of uv_callback handle does not release all the resources.
 // for this libuv should support a calling a callback when our handle is being closed.
-
+// we must use the uv_callback_stop or .._stop_all before closing the event loop.
 
 /*****************************************************************************/
 /* RECEIVER / CALLED THREAD **************************************************/
@@ -43,6 +43,10 @@ void uv_callback_release(uv_callback_t *callback) {
                break;
             }
             cb = cb->next;
+         }
+         /* stop the idle handle */
+         if (callback->idle_active) {
+            uv_idle_stop(&callback->idle);
          }
          /* release the object */
          callback->free_cb(callback);

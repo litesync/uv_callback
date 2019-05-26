@@ -187,6 +187,7 @@ int main() {
    uv_callback_fire(&cb_progress, (void*)30, NULL);
    uv_callback_fire(&cb_progress, (void*)40, NULL);
    uv_callback_fire(&cb_progress, (void*)50, NULL);
+   usleep(50000);
    uv_callback_fire(&cb_progress, (void*)60, NULL);
    uv_callback_fire(&cb_progress, (void*)70, NULL);
    uv_callback_fire(&cb_progress, (void*)80, NULL);
