@@ -139,6 +139,40 @@ uv_callback_init(loop, &result_cb, on_result, UV_DEFAULT);
 uv_callback_fire(&send_data, data, &result_cb);
 ```
 
+## Non-static objects
+
+If the `uv_callback_t` object is allocated on memory then you can inform which function should be used to release it using the `uv_callback_init_ex` function:
+
+```
+uv_callback_t *cb = malloc(sizeof(uv_callback_t));
+if (!cb) ...
+uv_callback_init_ex(loop, &cb, get_values, UV_DEFAULT, free, NULL);
+```
+
+You can discard it on the same thread it was created using the `uv_callback_stop` function just before closing the loop handles (check usage on the [uv_callback_fire_sync](https://github.com/litesync/uv_callback/blob/master/uv_callback.c#L281) function). The object will be released when the reference counter reaches 0.
+
+You can also inform in the last argument which function should be used to release the result from the callback, if it is not used.
+
+```
+void * get_data(uv_callback_t *handle, void *arg) {
+  struct my_data *result = malloc(sizeof(struct my_data))
+  result->data1 = calc1(arg);
+  result->data2 = calc2(arg);
+  free(arg);
+  return result;
+}
+
+void thread_init() {
+  uv_callback_t *cb = malloc(sizeof(uv_callback_t));
+  if (!cb) ...
+  uv_callback_init_ex(loop, &cb, get_data, UV_DEFAULT, free, free);
+  ...
+}
+```
+
+Check the [test](test/test.c) for more usage examples.
+
+
 # Requirement
 
 For uv_callback to work you must not use uv_async handles in the same loops that use uv_callback.
