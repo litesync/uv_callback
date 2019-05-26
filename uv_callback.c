@@ -170,7 +170,7 @@ int uv_callback_init_ex(
    if (!loop || !callback || !function) return UV_EINVAL;
 
    memset(callback, 0, sizeof(uv_callback_t));
-   callback->data = callback; /* mark as a uv_callback handle */
+   callback->async.data = callback; /* mark as a uv_callback handle */
 
    callback->function = function;
 

@@ -53,11 +53,9 @@ void uv_callback_release(uv_callback_t *callback);
 /* Structures */
 
 struct uv_callback_s {
-   union {
-      uv_async_t async;
-      void *data;
-   };
-   int usequeue;
+   uv_async_t async;          /* base async handle used for thread signal */
+   void *data;                /* additional data pointer. not the same from the handle */
+   int usequeue;              /* if this callback uses a queue of calls */
    uv_call_t *queue;          /* queue of calls to this callback */
    uv_mutex_t mutex;          /* mutex used to access the queue */
    uv_callback_func function; /* the function to be called */
