@@ -132,6 +132,9 @@ void uv_callback_async_cb(uv_async_t* handle) {
          if (call->notify) {
             uv_callback_release(call->notify);
          }
+         if (call->data && call->free_data) {
+            call->free_data(call->data);
+         }
          free(call);
          /* don't check for new calls now to prevent the loop from blocking
          for i/o events. start an idle handle to call this function again */
