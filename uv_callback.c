@@ -122,7 +122,7 @@ void uv_callback_async_cb(uv_async_t* handle) {
    if (callback->usequeue) {
       uv_call_t *call = dequeue_call(callback);
       if (call) {
-         void *result = call->callback->function(call->callback, call->data);
+         void *result = call->callback->function(call->callback, call->data, call->size);
          /* check if the result notification callback is still active */
          if (call->notify && !call->notify->inactive) {
             uv_callback_fire(call->notify, result, NULL);
@@ -148,7 +148,7 @@ void uv_callback_async_cb(uv_async_t* handle) {
          callback->idle_active = 0;
       }
    } else {
-      callback->function(callback, callback->arg);
+      callback->function(callback, callback->arg, 0);
    }
 
 }
@@ -243,7 +243,7 @@ void uv_callback_stop_all(uv_loop_t* loop) {
 
 /* Asynchronous Callback Firing **********************************************/
 
-int uv_callback_fire_ex(uv_callback_t* callback, void *data, void (*free_data)(void*), uv_callback_t* notify) {
+int uv_callback_fire_ex(uv_callback_t* callback, void *data, int size, void (*free_data)(void*), uv_callback_t* notify) {
 
    if (!callback) return UV_EINVAL;
    if (callback->inactive) return UV_EPERM;
@@ -257,6 +257,7 @@ int uv_callback_fire_ex(uv_callback_t* callback, void *data, void (*free_data)(v
       if (!call) return UV_ENOMEM;
       /* save the call info */
       call->data = data;
+      call->size = size;
       call->notify = notify;
       call->callback = callback;
       call->free_data = free_data;
@@ -278,7 +279,7 @@ int uv_callback_fire_ex(uv_callback_t* callback, void *data, void (*free_data)(v
 }
 
 int uv_callback_fire(uv_callback_t* callback, void *data, uv_callback_t* notify) {
-   return uv_callback_fire_ex(callback, data, NULL, notify);
+   return uv_callback_fire_ex(callback, data, 0, NULL, notify);
 }
 
 /* Synchronous Callback Firing ***********************************************/
@@ -287,6 +288,7 @@ struct call_result {
    int timed_out;
    int called;
    void *data;
+   int size;
 };
 
 void callback_on_close(uv_handle_t *handle) {
@@ -299,11 +301,12 @@ void callback_on_walk(uv_handle_t *handle, void *arg) {
    uv_close(handle, callback_on_close);
 }
 
-void * on_call_result(uv_callback_t *callback, void *data) {
+void * on_call_result(uv_callback_t *callback, void *data, int size) {
    uv_loop_t *loop = ((uv_handle_t*)callback)->loop;
    struct call_result *result = loop->data;
    result->called = 1;
    result->data = data;
+   result->size = size;
    uv_stop(loop);
    return NULL;
 }
