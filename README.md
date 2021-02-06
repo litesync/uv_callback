@@ -27,7 +27,7 @@ The call coalescing is enabled using the UV_COALESCE constant.
 ```C
 uv_callback_t progress;
 
-void * on_progress(uv_callback_t *handle, void *value) {
+void * on_progress(uv_callback_t *handle, void *value, int size) {
    printf("progress: %d\n", (int)value);
 }
 
@@ -52,7 +52,7 @@ So instead of UV_COALESCE it uses UV_DEFAULT.
 ```C
 uv_callback_t send_data;
 
-void * on_data(uv_callback_t *handle, void *data) {
+void * on_data(uv_callback_t *handle, void *data, int size) {
   do_something(data);
   free(data);
 }
@@ -87,7 +87,7 @@ the function returns `UV_ETIMEDOUT`.
 ```C
 uv_callback_t send_data;
 
-void * on_data(uv_callback_t *handle, void *args) {
+void * on_data(uv_callback_t *handle, void *args, int size) {
   int result = do_something(args);
   free(args);
   return (void*)result;
@@ -116,7 +116,7 @@ Note that there are 2 callback definitions here, one for each thread.
 ```C
 uv_callback_t send_data;
 
-void * on_data(uv_callback_t *handle, void *data) {
+void * on_data(uv_callback_t *handle, void *data, int size) {
   int result = do_something(data);
   free(data);
   return (void*)result;
@@ -130,7 +130,7 @@ uv_callback_init(loop, &send_data, on_data, UV_DEFAULT);
 ```C
 uv_callback_t result_cb;
 
-void * on_result(uv_callback_t *handle, void *result) {
+void * on_result(uv_callback_t *handle, void *result, int size) {
   printf("The result is %d\n", (int)result);
 }
 
@@ -178,7 +178,7 @@ void on_walk(uv_handle_t *handle, void *arg) {
 You can also inform in the last argument which function should be used to release the result from the callback, if it is not used.
 
 ```C
-void * get_data(uv_callback_t *handle, void *arg) {
+void * get_data(uv_callback_t *handle, void *arg, int size) {
   struct my_data *result = malloc(sizeof(struct my_data))
   result->data1 = calc1(arg);
   result->data2 = calc2(arg);
