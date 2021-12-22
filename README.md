@@ -40,6 +40,8 @@ uv_callback_init(loop, &progress, on_progress, UV_COALESCE);
 uv_callback_fire(&progress, (void*)value, NULL);
 ```
 
+⚠️ Do **NOT** send pointers with UV_COALESCE, only scalar values
+
 
 ## Sending allocated data that must be released
 
@@ -199,9 +201,9 @@ Check the [test](test/test.c) for more usage examples.
 
 # Requirement
 
-For uv_callback to work you must not use uv_async handles in the same loops that use uv_callback.
+⚠️ For `uv_callback` to work you must **NOT** use `uv_async` handles in the same loops that use `uv_callback`!
 
-This requirement applies to the [last commit](https://github.com/litesync/uv_callback/commit/f9e54ca561e40cb61398534c3b069c800c537a41) that ensures that the order of calls will be preserved.
+This requirement applies to the [this commit](https://github.com/litesync/uv_callback/commit/f9e54ca561e40cb61398534c3b069c800c537a41) that ensures that the order of calls will be preserved.
 
 If you want to use uv_async handles with uv_callback, use the [previous commit](https://github.com/litesync/uv_callback/commit/f19aba8b9c21f860f9e00fd5654baa6aeff81a76). It preserves the 
 order of calls only within a single callback handle, not globally.
