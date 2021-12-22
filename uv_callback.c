@@ -92,23 +92,26 @@ void dequeue_all_from_callback(uv_callback_t* master, uv_callback_t* callback) {
 
    call = master->queue;
    while (call) {
+      uv_call_t *next = call->next;
       if (call->callback == callback) {
          /* remove it from the queue */
          if (prev)
-            prev->next = call->next;
+            prev->next = next;
          else
-            callback->queue = NULL;
+            master->queue = next;
          /* discard this call */
          if (call->data && call->free_data) {
             call->free_data(call->data);
          }
          free(call);
-         call = prev->next;
       } else {
          prev = call;
-         call = call->next;
       }
+      /* move to the next call */
+      call = next;
    }
+
+   callback->queue = NULL;
 
    uv_mutex_unlock(&master->mutex);
 
