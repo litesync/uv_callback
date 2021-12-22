@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <memory.h>
 #include "../uv_callback.c"
+#include <inttypes.h>
+#include <unistd.h>
 #include <assert.h>
 
 uv_thread_t   worker_thread;
@@ -46,24 +48,24 @@ uv_callback_t cb_sum;
 uv_callback_t cb_sum2;
 uv_callback_t cb_slow;
 
-void * on_progress(uv_callback_t *callback, void *data) {
-   printf("progress: %d %%\n", (int)data);
+void * on_progress(uv_callback_t *callback, void *data, int size) {
+   printf("progress: %" PRIxPTR " %%\n", (intptr_t)data);
    progress_called++;
 }
 
-void * on_static_pointer(uv_callback_t *callback, void *data) {
+void * on_static_pointer(uv_callback_t *callback, void *data, int size) {
    printf("static pointer: (%p) %s\n", data, (char*)data);
    //assert(strcmp((char*)data, msg1) == 0);
    static_call_counter++;
 }
 
-void * on_dynamic_pointer(uv_callback_t *callback, void *data) {
+void * on_dynamic_pointer(uv_callback_t *callback, void *data, int size) {
    printf("dynamic pointer: (%p) %s\n", data, (char*)data);
    free(data);
    dynamic_call_counter++;
 }
 
-void * on_sum(uv_callback_t *callback, void *data) {
+void * on_sum(uv_callback_t *callback, void *data, int size) {
    struct numbers *request = (struct numbers *)data;
    struct numbers *response = malloc(sizeof(struct numbers));
    assert(response != 0);
@@ -75,26 +77,27 @@ void * on_sum(uv_callback_t *callback, void *data) {
    return response;
 }
 
-void * on_sum2(uv_callback_t *callback, void *data) {
+void * on_sum2(uv_callback_t *callback, void *data, int size) {
    struct numbers *request = (struct numbers *)data;
-   int result = request->number1 + request->number2;
-   printf("sum2 (%p) number1: %d  number2: %d  result: %d\n", data, request->number1, request->number2, result);
+   intptr_t result = request->number1 + request->number2;
+   printf("sum2 (%p) number1: %d  number2: %d  result: %" PRIxPTR "\n", data, request->number1, request->number2, result);
    free(request);
    return (void*)result;
 }
 
-void * on_slow(uv_callback_t *callback, void *data) {
+void * on_slow(uv_callback_t *callback, void *data, int size) {
    struct numbers *request = (struct numbers *)data;
-   int result = request->number1 + request->number2;
-   printf("slow function (%p) number1: %d  number2: %d  result: %d\n", data, request->number1, request->number2, result);
+   intptr_t result = request->number1 + request->number2;
+   printf("slow function (%p) number1: %d  number2: %d  result: %" PRIxPTR "\n", data, request->number1, request->number2, result);
    free(request);
    sleep(2);
    return (void*)result;
 }
 
-void * stop_worker_cb(uv_callback_t *handle, void *arg) {
+void * stop_worker_cb(uv_callback_t *handle, void *data, int size) {
    puts("signal received to stop worker thread");
    uv_stop(((uv_handle_t*)handle)->loop);
+   return NULL;
 }
 
 void worker_start(void *arg) {
@@ -150,7 +153,7 @@ void worker_start(void *arg) {
 
 uv_callback_t cb_result;
 
-void * on_result(uv_callback_t *callback, void *data) {
+void * on_result(uv_callback_t *callback, void *data, int size) {
    struct numbers *response = (struct numbers *)data;
    printf("on sum result (%p)  number1: %d  number2: %d  result=%d\n", data, response->number1, response->number2, response->result);
    assert(response->number1 == 123);
